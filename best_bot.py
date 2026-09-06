@@ -2,7 +2,6 @@
 """BEST 클랜 봇 전용 실행 진입점."""
 import sys
 import types
-import os
 from pathlib import Path
 
 
@@ -69,21 +68,31 @@ from best_features import setup_best_features
 from best_overrides import setup_overrides
 from youtube_alerts import setup_youtube_alerts
 from team_shuffle import setup_team_shuffle
+from clan_core import setup_clan_core
 
 setup_best_features(bot, get_conn, admin_only)
 setup_overrides(bot, get_conn, admin_only)
 setup_youtube_alerts(bot, get_conn, admin_only)
 setup_team_shuffle(bot, get_conn)
+setup_clan_core(bot, get_conn, admin_only)
+
+
+_sync_done = False
 
 
 async def force_command_sync():
-    """실행 시 슬래시 명령어를 확실히 Discord에 등록/갱신합니다."""
+    """실행 시 슬래시 명령어를 한 번 확실하게 Discord에 등록/갱신합니다."""
+    global _sync_done
+    if _sync_done:
+        return
+    _sync_done = True
     try:
         synced = await bot.tree.sync()
         names = [cmd.name for cmd in bot.tree.get_commands()]
         print(f"[BEST-COMMANDS] 로컬 등록: {len(names)}개 / Discord 동기화: {len(synced)}개")
         print("[BEST-COMMANDS] " + ", ".join(names))
     except Exception as exc:
+        _sync_done = False
         print(f"[BEST-COMMANDS] 동기화 실패: {type(exc).__name__}: {exc}")
 
 
