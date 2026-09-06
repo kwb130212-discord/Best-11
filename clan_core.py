@@ -88,8 +88,7 @@ def setup_clan_core(bot, get_conn, admin_only):
     @bot.tree.command(name='출석현황', description='최근 클랜 출석 순위를 확인합니다.')
     async def attendance_rank(i: discord.Interaction):
         c = get_conn()
-        rows = c.execute('''SELECT user_id, COUNT(*) AS n FROM clan_attendance
-                            WHERE guild_id=? GROUP BY user_id ORDER BY n DESC LIMIT 10''', (i.guild_id,)).fetchall()
+        rows = c.execute('''SELECT user_id, COUNT(*) AS n FROM clan_attendance WHERE guild_id=? GROUP BY user_id ORDER BY n DESC LIMIT 10''', (i.guild_id,)).fetchall()
         c.close()
         lines = []
         for idx, row in enumerate(rows, 1):
@@ -184,8 +183,9 @@ def setup_clan_core(bot, get_conn, admin_only):
             '`/이벤트생성` `/이벤트추첨` `/추첨역할설정`\n\n'
             '**📺 YouTube**\n'
             '`/유튜브알림패널` `/루에드알림` `/루에드채널설정`\n\n'
-            '**🛡️ 관리자**\n'
-            '`/전적기록` `/전적초기화` `/등급갱신`\n'
-            '`/공지` `/청소` `/경고` `/경고조회` `/경고삭제` `/경고초기화` `/로그채널설정`'
+            '**🛡️ 관리자/보안**\n'
+            '`/전적기록` `/전적초기화` `/등급갱신` `/공지` `/청소`\n'
+            '`/경고` `/경고조회` `/경고삭제` `/경고초기화` `/로그채널설정`\n'
+            '`/보안로그설정` `/레이드방어설정` `/보안상태`'
         )
         await i.response.send_message(embed=discord.Embed(title='📚 BEST 클랜 명령어', description=text, color=discord.Color.blurple()), ephemeral=True)
