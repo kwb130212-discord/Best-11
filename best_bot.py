@@ -24,6 +24,42 @@ def load_app_safely():
     return module
 
 
+def load_feature_safely(module_name, replacements):
+    """Discord가 허용하지 않는 한글 옵션 식별자를 ASCII 옵션명으로 정규화합니다."""
+    path = Path(__file__).with_name(module_name + ".py")
+    source = path.read_text(encoding="utf-8")
+    for old, new in replacements.items():
+        source = source.replace(old, new)
+    module = types.ModuleType(module_name)
+    module.__file__ = str(path)
+    module.__package__ = ""
+    sys.modules[module_name] = module
+    exec(compile(source, str(path), "exec"), module.__dict__)
+    return module
+
+
+OPTION_RENAMES = {
+    "이벤트ID": "event_id",
+    "스크림ID": "scrim_id",
+    "제목": "title",
+    "설명": "description",
+    "최대참여": "max_entries",
+    "역할": "role",
+    "배율": "multiplier",
+    "채널": "channel",
+    "요일": "weekday",
+    "시": "hour",
+    "분": "minute",
+    "내용": "content",
+    "개수": "amount",
+    "대상": "member",
+    "사유": "reason",
+    "결과": "result",
+    "경기수": "games",
+    "켜기": "enabled",
+}
+
+
 app = load_app_safely()
 from app import bot, get_conn, admin_only, TOKEN
 
@@ -64,19 +100,21 @@ async def scrim_role_listener(interaction):
 
 bot.add_listener(scrim_role_listener, "on_interaction")
 
-from best_features import setup_best_features
-from best_overrides import setup_overrides
+best_features = load_feature_safely("best_features", OPTION_RENAMES)
+best_overrides = load_feature_safely("best_overrides", OPTION_RENAMES)
+
 from youtube_alerts import setup_youtube_alerts
 from team_shuffle import setup_team_shuffle
-from clan_core import setup_clan_core
-from clan_rank import setup_clan_rank
 
-setup_best_features(bot, get_conn, admin_only)
-setup_overrides(bot, get_conn, admin_only)
+clan_core = load_feature_safely("clan_core", OPTION_RENAMES)
+clan_rank = load_feature_safely("clan_rank", OPTION_RENAMES)
+
+best_features.setup_best_features(bot, get_conn, admin_only)
+best_overrides.setup_overrides(bot, get_conn, admin_only)
 setup_youtube_alerts(bot, get_conn, admin_only)
 setup_team_shuffle(bot, get_conn)
-setup_clan_core(bot, get_conn, admin_only)
-setup_clan_rank(bot, get_conn, admin_only)
+clan_core.setup_clan_core(bot, get_conn, admin_only)
+clan_rank.setup_clan_rank(bot, get_conn, admin_only)
 
 
 _sync_done = False
