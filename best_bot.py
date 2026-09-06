@@ -105,6 +105,7 @@ best_overrides = load_feature_safely("best_overrides", OPTION_RENAMES)
 from youtube_alerts import setup_youtube_alerts
 from team_shuffle import setup_team_shuffle
 from security_guard import setup_security_guard
+from clan_recruitment import setup_clan_recruitment
 
 clan_core = load_feature_safely("clan_core", OPTION_RENAMES)
 clan_rank = load_feature_safely("clan_rank", OPTION_RENAMES)
@@ -114,6 +115,7 @@ best_overrides.setup_overrides(bot, get_conn, admin_only)
 setup_youtube_alerts(bot, get_conn, admin_only)
 setup_team_shuffle(bot, get_conn)
 setup_security_guard(bot, get_conn, admin_only)
+setup_clan_recruitment(bot, admin_only)
 clan_core.setup_clan_core(bot, get_conn, admin_only)
 clan_rank.setup_clan_rank(bot, get_conn, admin_only)
 
