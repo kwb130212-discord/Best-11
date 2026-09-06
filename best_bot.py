@@ -2,6 +2,7 @@
 """BEST 클랜 봇 전용 실행 진입점."""
 import sys
 import types
+import os
 from pathlib import Path
 
 
@@ -27,7 +28,6 @@ def load_app_safely():
 app = load_app_safely()
 from app import bot, get_conn, admin_only, TOKEN
 
-# 관리자 역할은 정확히 '관리자'로 통일
 app.ADMIN_ROLE_NAME = "관리자"
 SCRIM_ROLE_NAME = "정기내전(스크림)참석"
 
@@ -76,9 +76,18 @@ setup_youtube_alerts(bot, get_conn, admin_only)
 setup_team_shuffle(bot, get_conn)
 
 
-@bot.event
-async def on_ready_best_command_sync():
-    pass
+async def force_command_sync():
+    """실행 시 슬래시 명령어를 확실히 Discord에 등록/갱신합니다."""
+    try:
+        synced = await bot.tree.sync()
+        names = [cmd.name for cmd in bot.tree.get_commands()]
+        print(f"[BEST-COMMANDS] 로컬 등록: {len(names)}개 / Discord 동기화: {len(synced)}개")
+        print("[BEST-COMMANDS] " + ", ".join(names))
+    except Exception as exc:
+        print(f"[BEST-COMMANDS] 동기화 실패: {type(exc).__name__}: {exc}")
+
+
+bot.add_listener(force_command_sync, "on_ready")
 
 
 if __name__ == "__main__":
