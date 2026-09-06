@@ -13,9 +13,6 @@ def load_app_safely():
     path = Path(__file__).with_name("app.py")
     source = path.read_text(encoding="utf-8")
 
-    # discord.ui.button 데코레이터는 클래스 정의 시점에 평가되므로
-    # __init__ 인자인 scrim_id를 custom_id f-string에서 사용할 수 없습니다.
-    # 영구 View에 맞는 고정 custom_id로 바꾸고 실제 스크림 ID는 View 인스턴스가 보유합니다.
     replacements = {
         'custom_id=f"scrim_attend_{scrim_id}"': 'custom_id="scrim_attend"',
         'custom_id=f"scrim_absent_{scrim_id}"': 'custom_id="scrim_absent"',
@@ -41,9 +38,7 @@ def load_app_safely():
 app = load_app_safely()
 from app import bot, get_conn, admin_only, TOKEN
 
-# BEST 서버의 관리자 역할 이름은 정확히 '관리자'로 고정합니다.
 app.ADMIN_ROLE_NAME = "관리자"
-
 SCRIM_ROLE_NAME = "정기내전(스크림)참석"
 
 
@@ -90,10 +85,12 @@ bot.add_listener(scrim_role_listener, "on_interaction")
 from best_features import setup_best_features
 from best_overrides import setup_overrides
 from youtube_alerts import setup_youtube_alerts
+from team_shuffle import setup_team_shuffle
 
 setup_best_features(bot, get_conn, admin_only)
 setup_overrides(bot, get_conn, admin_only)
 setup_youtube_alerts(bot, get_conn, admin_only)
+setup_team_shuffle(bot, get_conn)
 
 if __name__ == "__main__":
     if not TOKEN or TOKEN == "YOUR_BOT_TOKEN_HERE":
