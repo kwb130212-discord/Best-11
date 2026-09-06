@@ -175,6 +175,9 @@ def setup_clan_core(bot, get_conn, admin_only):
         text = (
             '**🏆 BEST 클랜 기본**\n'
             '`/클랜정보` `/내정보` `/출석` `/출석현황` `/클랜명령어`\n\n'
+            '**📊 전적/등급**\n'
+            '`/전적` `/승률순위`\n'
+            '등급: **정예 70%+ / 1군 55%+ / 2군 40%+ / 3군 40% 미만**\n\n'
             '**⚔️ 내전**\n'
             '`/스크림등록` `/내전패널` `/팀짜기` `/정기내전등록`\n\n'
             '**🎉 이벤트**\n'
@@ -182,6 +185,7 @@ def setup_clan_core(bot, get_conn, admin_only):
             '**📺 YouTube**\n'
             '`/유튜브알림패널` `/루에드알림` `/루에드채널설정`\n\n'
             '**🛡️ 관리자**\n'
+            '`/전적기록` `/전적초기화` `/등급갱신`\n'
             '`/공지` `/청소` `/경고` `/경고조회` `/경고삭제` `/경고초기화` `/로그채널설정`'
         )
         await i.response.send_message(embed=discord.Embed(title='📚 BEST 클랜 명령어', description=text, color=discord.Color.blurple()), ephemeral=True)
