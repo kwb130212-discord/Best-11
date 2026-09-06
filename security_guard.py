@@ -60,12 +60,7 @@ def setup_security_guard(bot, get_conn, admin_only):
         channel = guild.get_channel(channel_id)
         if not channel:
             return
-        embed = discord.Embed(
-            title=title,
-            description=description,
-            color=color or discord.Color.orange(),
-            timestamp=datetime.now(KST),
-        )
+        embed = discord.Embed(title=title, description=description, color=color or discord.Color.orange(), timestamp=datetime.now(KST))
         embed.set_footer(text="BEST • 보안 로그")
         try:
             await channel.send(embed=embed)
@@ -74,6 +69,7 @@ def setup_security_guard(bot, get_conn, admin_only):
 
     @bot.tree.command(name="보안로그설정", description="[관리자] 보안/레이드 로그 채널을 설정합니다.")
     @app_commands.describe(channel="보안 로그를 보낼 텍스트 채널")
+    @app_commands.rename(channel="채널")
     @admin_only()
     async def set_security_log(interaction: discord.Interaction, channel: discord.TextChannel):
         c = get_conn()
@@ -87,7 +83,12 @@ def setup_security_guard(bot, get_conn, admin_only):
         await interaction.response.send_message(f"✅ 보안 로그 채널을 {channel.mention}으로 설정했습니다.", ephemeral=True)
 
     @bot.tree.command(name="레이드방어설정", description="[관리자] 대량 입장 레이드 방어 기준을 설정합니다.")
-    @app_commands.describe(threshold="몇 명 이상 입장하면 레이드로 볼지 (3~20)", seconds="판정 시간 창 (10~120초)", timeout_minutes="레이드 중 신규 입장자 타임아웃 시간 (1~60분)")
+    @app_commands.describe(
+        threshold="몇 명 이상 입장하면 레이드로 볼지 (3~20)",
+        seconds="판정 시간 창 (10~120초)",
+        timeout_minutes="레이드 중 신규 입장자 타임아웃 시간 (1~60분)",
+    )
+    @app_commands.rename(threshold="인원수", seconds="초", timeout_minutes="타임아웃")
     @admin_only()
     async def raid_settings(
         interaction: discord.Interaction,
@@ -113,10 +114,7 @@ def setup_security_guard(bot, get_conn, admin_only):
         row = get_settings(interaction.guild_id)
         locked = float(row["raid_lock_until"] or 0) > time.time()
         remain = max(0, int(float(row["raid_lock_until"] or 0) - time.time()))
-        e = discord.Embed(
-            title="🛡️ BEST 서버 보안 상태",
-            color=discord.Color.red() if locked else discord.Color.green(),
-        )
+        e = discord.Embed(title="🛡️ BEST 서버 보안 상태", color=discord.Color.red() if locked else discord.Color.green())
         e.add_field(name="레이드 방어", value="🚨 작동 중" if locked else "🟢 대기 중", inline=True)
         e.add_field(name="판정 기준", value=f"{row['raid_threshold']}명 / {row['raid_window']}초", inline=True)
         e.add_field(name="신규 타임아웃", value=f"{row['raid_timeout']}분", inline=True)
@@ -133,7 +131,6 @@ def setup_security_guard(bot, get_conn, admin_only):
         threshold = int(row["raid_threshold"])
         window = int(row["raid_window"])
         timeout_minutes = int(row["raid_timeout"])
-
         q = join_events[guild.id]
         q.append(now_ts)
         while q and q[0] < now_ts - window:
@@ -153,26 +150,18 @@ def setup_security_guard(bot, get_conn, admin_only):
             c.commit()
             c.close()
             try:
-                await member.timeout(
-                    discord.utils.utcnow() + timedelta(minutes=timeout_minutes),
-                    reason="자동 레이드 방어: 단시간 대량 입장 감지",
-                )
+                await member.timeout(discord.utils.utcnow() + timedelta(minutes=timeout_minutes), reason="자동 레이드 방어: 단시간 대량 입장 감지")
             except (discord.Forbidden, discord.HTTPException):
                 pass
             await send_security_log(
                 guild,
                 "🚨 레이드 방어 발동",
-                f"**{len(q)}명**이 최근 **{window}초** 안에 입장했습니다.\n"
-                f"대상: {member.mention} (`{member}`)\n"
-                f"조치: 신규 입장자 **{timeout_minutes}분 타임아웃**",
+                f"**{len(q)}명**이 최근 **{window}초** 안에 입장했습니다.\n대상: {member.mention} (`{member}`)\n조치: 신규 입장자 **{timeout_minutes}분 타임아웃**",
                 discord.Color.red(),
             )
         elif float(row["raid_lock_until"] or 0) > now_ts:
             try:
-                await member.timeout(
-                    discord.utils.utcnow() + timedelta(minutes=timeout_minutes),
-                    reason="레이드 보호 모드 중 신규 입장",
-                )
+                await member.timeout(discord.utils.utcnow() + timedelta(minutes=timeout_minutes), reason="레이드 보호 모드 중 신규 입장")
             except (discord.Forbidden, discord.HTTPException):
                 pass
             await send_security_log(guild, "🛡️ 레이드 보호 모드", f"신규 입장자 {member.mention}에게 임시 타임아웃을 적용했습니다.")
@@ -195,8 +184,7 @@ def setup_security_guard(bot, get_conn, admin_only):
             await send_security_log(
                 message.guild,
                 "🚨 도배 방어 발동",
-                f"대상: {message.author.mention}\n채널: {message.channel.mention}\n"
-                f"조치: **5분 타임아웃**\n기준: {SPAM_LIMIT}회 / {SPAM_WINDOW}초",
+                f"대상: {message.author.mention}\n채널: {message.channel.mention}\n조치: **5분 타임아웃**\n기준: {SPAM_LIMIT}회 / {SPAM_WINDOW}초",
                 discord.Color.red(),
             )
 
@@ -219,7 +207,6 @@ def setup_security_guard(bot, get_conn, admin_only):
             discord.Color.orange(),
         )
 
-    # 기존 app.py의 이벤트 핸들러를 덮어쓰지 않고 병렬 리스너로 등록합니다.
     bot.add_listener(security_member_join, "on_member_join")
     bot.add_listener(security_message, "on_message")
     bot.add_listener(security_interaction, "on_interaction")
