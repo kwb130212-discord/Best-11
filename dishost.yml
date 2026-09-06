@@ -1,0 +1,17 @@
+name: 루에드 유튜브
+language: python
+startup: python best_bot.py
+memory: 128
+cpu: 25
+disk: 512
+env:
+  ADMIN_ROLE_NAME: 관리자
+  VERIFY_ROLE_NAME: 인증유저
+  YOUTUBE_NOTIFY_ROLE_NAME: 유튜브 알림받기
+  DB_PATH: team.db
+  YOUTUBE_POLL_SECONDS: "120"
+  ROUED_YOUTUBE_CHANNEL: https://youtube.com/channel/UCUPmRarC5IUyph8-tA3akUg
+  BOT_NAME: 루에드 유튜브
+git:
+  autoDeploy: true
+  branch: main
