@@ -69,12 +69,14 @@ from best_overrides import setup_overrides
 from youtube_alerts import setup_youtube_alerts
 from team_shuffle import setup_team_shuffle
 from clan_core import setup_clan_core
+from clan_rank import setup_clan_rank
 
 setup_best_features(bot, get_conn, admin_only)
 setup_overrides(bot, get_conn, admin_only)
 setup_youtube_alerts(bot, get_conn, admin_only)
 setup_team_shuffle(bot, get_conn)
 setup_clan_core(bot, get_conn, admin_only)
+setup_clan_rank(bot, get_conn, admin_only)
 
 
 _sync_done = False
