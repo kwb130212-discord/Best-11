@@ -1,8 +1,5 @@
 # -*- coding: utf-8 -*-
-"""BEST-11 전용 브랜딩/간편 명령어.
-
-기존 기능을 유지하면서 루에드 유튜브 브랜딩과 무료 이벤트 기능을 제공합니다.
-"""
+"""BEST-11 전용 브랜딩/간편 명령어."""
 
 import os
 from datetime import datetime, timezone, timedelta
@@ -12,7 +9,8 @@ from discord import app_commands
 
 KST = timezone(timedelta(hours=9))
 BOT_NAME = os.getenv("BOT_NAME", "루에드 유튜브")
-ROUED_CHANNEL = os.getenv("ROUED_YOUTUBE_CHANNEL", "https://www.youtube.com/@루에드")
+ROUED_CHANNEL = os.getenv("ROUED_YOUTUBE_CHANNEL", "https://youtube.com/channel/UCUPmRarC5IUyph8-tA3akUg")
+VERIFY_ROLE_NAME = os.getenv("VERIFY_ROLE_NAME", "인증유저")
 
 
 def setup_overrides(bot, get_conn, admin_only):
@@ -24,47 +22,31 @@ def setup_overrides(bot, get_conn, admin_only):
         c.execute("""
             CREATE TABLE IF NOT EXISTS best_events(
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                guild_id INTEGER,
-                channel_id INTEGER,
-                title TEXT,
-                description TEXT,
-                max_entries INTEGER DEFAULT 0,
-                active INTEGER DEFAULT 1,
-                created_at TEXT
+                guild_id INTEGER, channel_id INTEGER, title TEXT, description TEXT,
+                max_entries INTEGER DEFAULT 0, active INTEGER DEFAULT 1, created_at TEXT
             )
         """)
         c.execute("""
             CREATE TABLE IF NOT EXISTS best_event_entries(
-                event_id INTEGER,
-                user_id INTEGER,
-                user_name TEXT,
-                created_at TEXT,
+                event_id INTEGER, user_id INTEGER, user_name TEXT, created_at TEXT,
                 PRIMARY KEY(event_id,user_id)
             )
         """)
         c.execute("""
             CREATE TABLE IF NOT EXISTS best_role_weights(
-                guild_id INTEGER,
-                role_id INTEGER,
-                multiplier REAL DEFAULT 1.0,
+                guild_id INTEGER, role_id INTEGER, multiplier REAL DEFAULT 1.0,
                 PRIMARY KEY(guild_id,role_id)
             )
         """)
         c.execute("""
             CREATE TABLE IF NOT EXISTS best_yt_subs(
-                guild_id INTEGER,
-                user_id INTEGER,
-                channel_ref TEXT,
-                channel_id TEXT,
-                last_video_id TEXT,
-                PRIMARY KEY(guild_id,user_id,channel_ref)
+                guild_id INTEGER, user_id INTEGER, channel_ref TEXT, channel_id TEXT,
+                last_video_id TEXT, PRIMARY KEY(guild_id,user_id,channel_ref)
             )
         """)
         c.execute("""
             CREATE TABLE IF NOT EXISTS best_yt_settings(
-                guild_id INTEGER PRIMARY KEY,
-                notify_channel_id INTEGER,
-                enabled INTEGER DEFAULT 1
+                guild_id INTEGER PRIMARY KEY, notify_channel_id INTEGER, enabled INTEGER DEFAULT 1
             )
         """)
         c.commit()
@@ -88,7 +70,6 @@ def setup_overrides(bot, get_conn, admin_only):
         def __init__(self, event_id):
             super().__init__(timeout=None)
             self.event_id = event_id
-            # 이벤트마다 고유 custom_id를 사용해 재시작 후에도 버튼이 유지됩니다.
             for child in self.children:
                 if isinstance(child, discord.ui.Button):
                     if child.label == "🎟️ 이벤트 참여":
@@ -135,20 +116,9 @@ def setup_overrides(bot, get_conn, admin_only):
             )
 
     @bot.tree.command(name="이벤트", description="[관리자] 물품과 주최자를 지정해 무료 이벤트를 생성합니다.")
-    @app_commands.describe(
-        물품="이벤트로 제공할 물품/보상 이름",
-        주최자="이벤트 주최자",
-        설명="이벤트 안내",
-        최대참여="0이면 제한 없음",
-    )
+    @app_commands.describe(물품="이벤트로 제공할 물품/보상 이름", 주최자="이벤트 주최자", 설명="이벤트 안내", 최대참여="0이면 제한 없음")
     @admin_only()
-    async def event_command(
-        interaction: discord.Interaction,
-        물품: str,
-        주최자: discord.Member,
-        설명: str = "",
-        최대참여: int = 0,
-    ):
+    async def event_command(interaction: discord.Interaction, 물품: str, 주최자: discord.Member, 설명: str = "", 최대참여: int = 0):
         if 최대참여 < 0:
             return await interaction.response.send_message("❌ 최대참여는 0 이상이어야 합니다.", ephemeral=True)
         c = get_conn()
@@ -160,12 +130,7 @@ def setup_overrides(bot, get_conn, admin_only):
         event_id = cur.lastrowid
         c.commit()
         c.close()
-
-        embed = discord.Embed(
-            title="🎁 루에드 유튜브 | BEST 이벤트",
-            description=설명 or "아래 버튼으로 참여하세요.",
-            color=discord.Color.gold(),
-        )
+        embed = discord.Embed(title="🎁 루에드 유튜브 | BEST 이벤트", description=설명 or "아래 버튼으로 참여하세요.", color=discord.Color.gold())
         embed.add_field(name="🎁 물품", value=물품, inline=False)
         embed.add_field(name="👤 주최자", value=주최자.mention, inline=True)
         embed.add_field(name="🎟️ 참여", value="1인 1회", inline=True)
@@ -189,10 +154,7 @@ def setup_overrides(bot, get_conn, admin_only):
         )
         c.commit()
         c.close()
-        await interaction.response.send_message(
-            f"✅ {역할.mention}의 무료 이벤트 당첨 가중치를 **{배율:.2f}배**로 설정했습니다.",
-            ephemeral=True,
-        )
+        await interaction.response.send_message(f"✅ {역할.mention}의 무료 이벤트 당첨 가중치를 **{배율:.2f}배**로 설정했습니다.", ephemeral=True)
 
     @bot.tree.command(name="루에드알림", description="루에드 유튜브 새 영상 알림을 켜거나 끕니다.")
     @app_commands.describe(켜기="True면 구독, False면 취소")
@@ -216,9 +178,10 @@ def setup_overrides(bot, get_conn, admin_only):
         await interaction.response.send_message(msg, ephemeral=True)
 
     @bot.tree.command(name="루에드채널설정", description="[관리자] 루에드 유튜브 알림 채널을 저장합니다.")
-    @app_commands.describe(채널="루에드 유튜브 채널 URL 또는 채널 ID")
+    @app_commands.describe(채널="YouTube 채널 URL 또는 채널 ID")
     @admin_only()
     async def roued_channel(interaction: discord.Interaction, 채널: str):
+        ref = 채널.strip()
         c = get_conn()
         c.execute(
             "INSERT INTO best_yt_settings(guild_id,notify_channel_id,enabled) VALUES(?,?,1) ON CONFLICT(guild_id) DO UPDATE SET notify_channel_id=excluded.notify_channel_id,enabled=1",
@@ -227,12 +190,12 @@ def setup_overrides(bot, get_conn, admin_only):
         c.execute("DELETE FROM best_yt_subs WHERE guild_id=? AND channel_ref=?", (interaction.guild_id, ROUED_CHANNEL))
         c.execute(
             "INSERT OR IGNORE INTO best_yt_subs(guild_id,user_id,channel_ref) VALUES(?,?,?)",
-            (interaction.guild_id, interaction.user.id, 채널.strip()),
+            (interaction.guild_id, interaction.user.id, ref),
         )
         c.commit()
         c.close()
         await interaction.response.send_message(
-            f"✅ 루에드 유튜브 채널을 `{채널.strip()}`로 저장했습니다. 알림 채널은 {interaction.channel.mention}입니다.",
+            f"✅ 루에드 유튜브 채널을 `{ref}`로 저장했습니다. 알림 채널은 {interaction.channel.mention}입니다.",
             ephemeral=True,
         )
 
@@ -242,7 +205,6 @@ def setup_overrides(bot, get_conn, admin_only):
             await bot.change_presence(activity=discord.Game(name=BOT_NAME))
         except Exception:
             pass
-        # 기존 이벤트 버튼을 모두 persistent view로 재등록합니다.
         try:
             c = get_conn()
             event_ids = [r["id"] for r in c.execute("SELECT id FROM best_events WHERE active=1").fetchall()]
@@ -263,4 +225,4 @@ def setup_overrides(bot, get_conn, admin_only):
                 pass
 
     bot.add_listener(branding_ready, "on_ready")
-    print(f"[BEST] branding loaded: {BOT_NAME}")
+    print(f"[BEST] branding loaded: {BOT_NAME} / verify role: {VERIFY_ROLE_NAME} / YouTube: {ROUED_CHANNEL}")
