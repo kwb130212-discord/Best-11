@@ -11,6 +11,7 @@ KST = timezone(timedelta(hours=9))
 BOT_NAME = os.getenv("BOT_NAME", "루에드 유튜브")
 ROUED_CHANNEL = os.getenv("ROUED_YOUTUBE_CHANNEL", "https://youtube.com/channel/UCUPmRarC5IUyph8-tA3akUg")
 VERIFY_ROLE_NAME = os.getenv("VERIFY_ROLE_NAME", "인증유저")
+YOUTUBE_NOTIFY_ROLE_NAME = os.getenv("YOUTUBE_NOTIFY_ROLE_NAME", "유튜브 알림받기")
 
 
 def setup_overrides(bot, get_conn, admin_only):
@@ -53,6 +54,40 @@ def setup_overrides(bot, get_conn, admin_only):
         c.close()
 
     ensure_tables()
+
+    def get_notify_role(guild):
+        return discord.utils.get(guild.roles, name=YOUTUBE_NOTIFY_ROLE_NAME)
+
+    async def ensure_notify_role(guild):
+        role = get_notify_role(guild)
+        if role:
+            return role
+        try:
+            return await guild.create_role(
+                name=YOUTUBE_NOTIFY_ROLE_NAME,
+                reason="루에드 유튜브 알림 구독 역할 자동 생성",
+            )
+        except (discord.Forbidden, discord.HTTPException):
+            return None
+
+    async def set_notify_state(interaction, enabled):
+        if not interaction.guild:
+            return "❌ 서버에서만 사용할 수 있습니다."
+
+        role = await ensure_notify_role(interaction.guild)
+        if not role:
+            return f"❌ `{YOUTUBE_NOTIFY_ROLE_NAME}` 역할을 만들거나 관리할 권한이 없습니다."
+
+        try:
+            if enabled:
+                await interaction.user.add_roles(role, reason="루에드 유튜브 알림 켜기")
+            else:
+                await interaction.user.remove_roles(role, reason="루에드 유튜브 알림 끄기")
+        except discord.Forbidden:
+            return f"❌ 봇의 역할이 `{YOUTUBE_NOTIFY_ROLE_NAME}` 역할보다 아래에 있어 역할을 변경할 수 없습니다."
+        except discord.HTTPException:
+            return "❌ Discord 역할 변경 중 오류가 발생했습니다. 잠시 후 다시 시도하세요."
+        return None
 
     def multiplier(member):
         c = get_conn()
@@ -157,7 +192,7 @@ def setup_overrides(bot, get_conn, admin_only):
         await interaction.response.send_message(f"✅ {역할.mention}의 무료 이벤트 당첨 가중치를 **{배율:.2f}배**로 설정했습니다.", ephemeral=True)
 
     @bot.tree.command(name="루에드알림", description="루에드 유튜브 새 영상 알림을 켜거나 끕니다.")
-    @app_commands.describe(켜기="True면 구독, False면 취소")
+    @app_commands.describe(켜기="True면 알림 역할/구독을 켜고, False면 둘 다 끕니다.")
     async def roued_alert(interaction: discord.Interaction, 켜기: bool = True):
         ref = ROUED_CHANNEL.strip()
         c = get_conn()
@@ -175,7 +210,14 @@ def setup_overrides(bot, get_conn, admin_only):
             msg = "🔕 루에드 유튜브 알림을 껐습니다."
         c.commit()
         c.close()
-        await interaction.response.send_message(msg, ephemeral=True)
+
+        role_error = await set_notify_state(interaction, 켜기)
+        if role_error:
+            return await interaction.response.send_message(role_error, ephemeral=True)
+        await interaction.response.send_message(
+            msg + f"\n역할: **{YOUTUBE_NOTIFY_ROLE_NAME}**",
+            ephemeral=True,
+        )
 
     @bot.tree.command(name="루에드채널설정", description="[관리자] 루에드 유튜브 알림 채널을 저장합니다.")
     @app_commands.describe(채널="YouTube 채널 URL 또는 채널 ID")
@@ -225,4 +267,4 @@ def setup_overrides(bot, get_conn, admin_only):
                 pass
 
     bot.add_listener(branding_ready, "on_ready")
-    print(f"[BEST] branding loaded: {BOT_NAME} / verify role: {VERIFY_ROLE_NAME} / YouTube: {ROUED_CHANNEL}")
+    print(f"[BEST] branding loaded: {BOT_NAME} / verify role: {VERIFY_ROLE_NAME} / YouTube notify role: {YOUTUBE_NOTIFY_ROLE_NAME} / YouTube: {ROUED_CHANNEL}")
