@@ -1,19 +1,17 @@
 # -*- coding: utf-8 -*-
 """BEST-11 전용 브랜딩/간편 명령어.
 
-이 모듈은 기존 app.py의 관리자 판정을 '관리자' 역할명으로 맞추고,
-루에드 유튜브 브랜딩과 무료 이벤트(무입금) 기능의 편의 명령을 추가한다.
+기존 기능을 유지하면서 루에드 유튜브 브랜딩과 무료 이벤트 기능을 제공합니다.
 """
 
 import os
-import sqlite3
 from datetime import datetime, timezone, timedelta
 
 import discord
 from discord import app_commands
 
 KST = timezone(timedelta(hours=9))
-BOT_NAME = "루에드 유튜브"
+BOT_NAME = os.getenv("BOT_NAME", "루에드 유튜브")
 ROUED_CHANNEL = os.getenv("ROUED_YOUTUBE_CHANNEL", "https://www.youtube.com/@루에드")
 
 
@@ -62,6 +60,13 @@ def setup_overrides(bot, get_conn, admin_only):
                 PRIMARY KEY(guild_id,user_id,channel_ref)
             )
         """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS best_yt_settings(
+                guild_id INTEGER PRIMARY KEY,
+                notify_channel_id INTEGER,
+                enabled INTEGER DEFAULT 1
+            )
+        """)
         c.commit()
         c.close()
 
@@ -71,7 +76,7 @@ def setup_overrides(bot, get_conn, admin_only):
         c = get_conn()
         rows = c.execute(
             "SELECT role_id,multiplier FROM best_role_weights WHERE guild_id=?",
-            (member.guild.id,)
+            (member.guild.id,),
         ).fetchall()
         c.close()
         return max(
@@ -83,8 +88,15 @@ def setup_overrides(bot, get_conn, admin_only):
         def __init__(self, event_id):
             super().__init__(timeout=None)
             self.event_id = event_id
+            # 이벤트마다 고유 custom_id를 사용해 재시작 후에도 버튼이 유지됩니다.
+            for child in self.children:
+                if isinstance(child, discord.ui.Button):
+                    if child.label == "🎟️ 이벤트 참여":
+                        child.custom_id = f"roued_event_join:{event_id}"
+                    elif child.label == "🎲 내 가중치":
+                        child.custom_id = f"roued_event_weight:{event_id}"
 
-        @discord.ui.button(label="🎟️ 이벤트 참여", style=discord.ButtonStyle.success, custom_id="roued_event_join")
+        @discord.ui.button(label="🎟️ 이벤트 참여", style=discord.ButtonStyle.success, custom_id="roued_event_join_init")
         async def join(self, interaction: discord.Interaction, button: discord.ui.Button):
             c = get_conn()
             event = c.execute(
@@ -115,7 +127,7 @@ def setup_overrides(bot, get_conn, admin_only):
             c.close()
             await interaction.response.send_message("✅ 이벤트 참여 완료!", ephemeral=True)
 
-        @discord.ui.button(label="🎲 내 가중치", style=discord.ButtonStyle.primary, custom_id="roued_event_weight")
+        @discord.ui.button(label="🎲 내 가중치", style=discord.ButtonStyle.primary, custom_id="roued_event_weight_init")
         async def show_weight(self, interaction: discord.Interaction, button: discord.ui.Button):
             await interaction.response.send_message(
                 f"🎲 현재 무료 이벤트 당첨 가중치: **{multiplier(interaction.user):.2f}배**",
@@ -203,7 +215,7 @@ def setup_overrides(bot, get_conn, admin_only):
         c.close()
         await interaction.response.send_message(msg, ephemeral=True)
 
-    @bot.tree.command(name="루에드채널설정", description="[관리자] 루에드 유튜브 채널 주소를 저장합니다.")
+    @bot.tree.command(name="루에드채널설정", description="[관리자] 루에드 유튜브 알림 채널을 저장합니다.")
     @app_commands.describe(채널="루에드 유튜브 채널 URL 또는 채널 ID")
     @admin_only()
     async def roued_channel(interaction: discord.Interaction, 채널: str):
@@ -230,6 +242,18 @@ def setup_overrides(bot, get_conn, admin_only):
             await bot.change_presence(activity=discord.Game(name=BOT_NAME))
         except Exception:
             pass
+        # 기존 이벤트 버튼을 모두 persistent view로 재등록합니다.
+        try:
+            c = get_conn()
+            event_ids = [r["id"] for r in c.execute("SELECT id FROM best_events WHERE active=1").fetchall()]
+            c.close()
+            for event_id in event_ids:
+                try:
+                    bot.add_view(EventView(event_id))
+                except ValueError:
+                    pass
+        except Exception:
+            pass
         for guild in bot.guilds:
             try:
                 me = guild.me or guild.get_member(bot.user.id)
@@ -239,5 +263,4 @@ def setup_overrides(bot, get_conn, admin_only):
                 pass
 
     bot.add_listener(branding_ready, "on_ready")
-    bot.add_view(EventView(0))
     print(f"[BEST] branding loaded: {BOT_NAME}")
