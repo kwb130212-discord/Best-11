@@ -107,6 +107,7 @@ from team_shuffle import setup_team_shuffle
 from security_guard import setup_security_guard
 from clan_recruitment import setup_clan_recruitment
 from best_upgrade import setup_upgrade
+from nvidia_judge import setup_nvidia_judge
 
 clan_core = load_feature_safely("clan_core", OPTION_RENAMES)
 clan_rank = load_feature_safely("clan_rank", OPTION_RENAMES)
@@ -120,6 +121,7 @@ setup_clan_recruitment(bot, admin_only)
 clan_core.setup_clan_core(bot, get_conn, admin_only)
 clan_rank.setup_clan_rank(bot, get_conn, admin_only)
 setup_upgrade(bot, get_conn, admin_only)
+setup_nvidia_judge(bot, get_conn, admin_only)
 
 
 _sync_done = False
