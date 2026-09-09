@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 """BEST-11 v2 운영/관리 업그레이드."""
-import time
 from datetime import datetime, timezone, timedelta
 
 import discord
@@ -59,7 +58,7 @@ def setup_upgrade(bot, get_conn, admin_only):
         c.commit()
         c.close()
 
-    @bot.tree.command(name="명령어", description="현재 등록된 BEST 봇 명령어를 카테고리별로 보여줍니다.")
+    @bot.tree.command(name="명령어", description="현재 등록된 BEST 봇 명령어를 보여줍니다.")
     async def command_list(i: discord.Interaction):
         commands = sorted(bot.tree.get_commands(), key=lambda x: x.name)
         names = [f"`/{c.name}` — {c.description or '설명 없음'}" for c in commands]
