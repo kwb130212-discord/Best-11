@@ -121,7 +121,7 @@ setup_clan_recruitment(bot, admin_only)
 clan_core.setup_clan_core(bot, get_conn, admin_only)
 clan_rank.setup_clan_rank(bot, get_conn, admin_only)
 setup_upgrade(bot, get_conn, admin_only)
-setup_nvidia_judge(bot, get_conn, admin_only)
+setup_nvidia_judge(bot, get_conn)
 
 
 _sync_done = False
