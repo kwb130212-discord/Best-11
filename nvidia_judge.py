@@ -12,7 +12,6 @@ from discord import app_commands
 API_URL = os.getenv("NVIDIA_API_URL", "https://integrate.api.nvidia.com/v1/chat/completions")
 API_KEY = os.getenv("NVIDIA_API_KEY", "").strip()
 MODEL = os.getenv("NVIDIA_JUDGE_MODEL", "nvidia/nemotron-3-super-120b-a12b")
-JUDGMENT_CHANNEL = os.getenv("JUDGMENT_CHANNEL_NAME", "판결")
 SYSTEM_PROMPT = """너는 Discord 서버의 '커뮤니티 분쟁 판정 보조 AI'다.
 실제 법원 판사나 변호사가 아니며 법적 효력이 있는 판결을 내리지 않는다.
 제공된 원고, 피고, 사실관계만 바탕으로 양측에 동일한 기준을 적용하고, 정보가 부족하면 부족하다고 명시한다.
@@ -69,12 +68,12 @@ def _next_case_number(get_conn) -> int:
     conn = get_conn()
     try:
         conn.execute("BEGIN IMMEDIATE")
-        row = conn.execute("SELECT COALESCE(MAX(case_no), 0) + 1 AS next_no FROM ai_judgments").fetchone()
+        row = conn.execute("SELECT COALESCE(MAX(case_no), 0) + 1 AS next_no FROM ai_judgments WHERE guild_id = ?", (0,)).fetchone()
         case_no = int(row["next_no"])
         conn.execute("COMMIT")
         return case_no
     except Exception:
-        conn.execute("ROLLBACK")
+        conn.rollback()
         raise
     finally:
         conn.close()
@@ -119,10 +118,14 @@ def setup_nvidia_judge(bot, get_conn, admin_only):
         if interaction.guild is None:
             await interaction.response.send_message("❌ 서버에서만 사용할 수 있습니다.", ephemeral=True)
             return
+        원고, 피고, 있었던일 = 원고.strip(), 피고.strip(), 있었던일.strip()
         if len(원고) > 200 or len(피고) > 200 or len(있었던일) > 5000:
             await interaction.response.send_message("❌ 입력이 너무 깁니다. 원고/피고는 200자, 있었던 일은 5000자 이내로 작성해주세요.", ephemeral=True)
             return
-        if 원고.strip() == 피고.strip():
+        if not 원고 or not 피고 or not 있었던일:
+            await interaction.response.send_message("❌ 원고, 피고, 있었던 일을 모두 입력해주세요.", ephemeral=True)
+            return
+        if 원고 == 피고:
             await interaction.response.send_message("❌ 원고와 피고를 동일하게 입력할 수 없습니다.", ephemeral=True)
             return
         if not API_KEY:
@@ -131,23 +134,23 @@ def setup_nvidia_judge(bot, get_conn, admin_only):
 
         await interaction.response.defer()
         try:
-            case_no = await asyncio.to_thread(_next_case_number, get_conn)
             prompt = (
-                f"원고: {원고.strip()}\n"
-                f"피고: {피고.strip()}\n"
-                f"있었던 일: {있었던일.strip()}\n\n"
+                f"원고: {원고}\n"
+                f"피고: {피고}\n"
+                f"있었던 일: {있었던일}\n\n"
                 "위 사건을 커뮤니티 운영 관점에서 중립적으로 분석하고 판정하라. "
                 "확인되지 않은 사실은 사실처럼 단정하지 말고, 증거가 없으면 그 점을 명시하라."
             )
             result = await asyncio.to_thread(_request_judgment, prompt)
+            case_no = await asyncio.to_thread(_next_case_number, get_conn)
             await asyncio.to_thread(
                 _save_case,
                 get_conn,
                 interaction.guild.id,
                 case_no,
-                원고.strip(),
-                피고.strip(),
-                있었던일.strip(),
+                원고,
+                피고,
+                있었던일,
                 result,
                 interaction.user.id,
             )
@@ -161,11 +164,10 @@ def setup_nvidia_judge(bot, get_conn, admin_only):
             description="실제 법적 판결이 아닌 서버 내 분쟁을 위한 AI 분석 결과입니다.",
             color=discord.Color.blurple(),
         )
-        embed.add_field(name="원고", value=원고.strip(), inline=True)
-        embed.add_field(name="피고", value=피고.strip(), inline=True)
-        embed.add_field(name="사건", value=있었던일.strip()[:1024], inline=False)
-        text = result[:5900]
-        embed.add_field(name="⚖️ 판정", value=text, inline=False)
+        embed.add_field(name="원고", value=원고, inline=True)
+        embed.add_field(name="피고", value=피고, inline=True)
+        embed.add_field(name="있었던 일", value=있었던일[:1024], inline=False)
+        embed.add_field(name="⚖️ 판정", value=result[:5900], inline=False)
         embed.set_footer(text="AI 판정은 참고용이며 최종적인 서버 운영 판단은 관리자에게 있습니다.")
         await interaction.followup.send(embed=embed)
 
