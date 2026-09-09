@@ -64,7 +64,7 @@ def _request_judgment(prompt: str) -> str:
     return choices[0]["message"]["content"].strip()
 
 
-def _next_case_number(get_conn, guild_id: int) -> int:
+def _save_case(get_conn, guild_id: int, plaintiff: str, defendant: str, incident: str, result: str, requester_id: int) -> int:
     conn = get_conn()
     try:
         conn.execute("BEGIN IMMEDIATE")
@@ -73,25 +73,19 @@ def _next_case_number(get_conn, guild_id: int) -> int:
             (guild_id,),
         ).fetchone()
         case_no = int(row["next_no"])
-        conn.rollback()
+        conn.execute(
+            """INSERT INTO ai_judgments
+            (guild_id, case_no, plaintiff, defendant, incident, result, requester_id, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))""",
+            (guild_id, case_no, plaintiff, defendant, incident, result, requester_id),
+        )
+        conn.commit()
         return case_no
     except Exception:
         conn.rollback()
         raise
     finally:
         conn.close()
-
-
-def _save_case(get_conn, guild_id: int, case_no: int, plaintiff: str, defendant: str, incident: str, result: str, requester_id: int) -> None:
-    conn = get_conn()
-    conn.execute(
-        """INSERT INTO ai_judgments
-        (guild_id, case_no, plaintiff, defendant, incident, result, requester_id, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))""",
-        (guild_id, case_no, plaintiff, defendant, incident, result, requester_id),
-    )
-    conn.commit()
-    conn.close()
 
 
 def setup_nvidia_judge(bot, get_conn, admin_only):
@@ -145,17 +139,8 @@ def setup_nvidia_judge(bot, get_conn, admin_only):
                 "확인되지 않은 사실은 사실처럼 단정하지 말고, 증거가 없으면 그 점을 명시하라."
             )
             result = await asyncio.to_thread(_request_judgment, prompt)
-            case_no = await asyncio.to_thread(_next_case_number, get_conn, interaction.guild.id)
-            await asyncio.to_thread(
-                _save_case,
-                get_conn,
-                interaction.guild.id,
-                case_no,
-                원고,
-                피고,
-                있었던일,
-                result,
-                interaction.user.id,
+            case_no = await asyncio.to_thread(
+                _save_case, get_conn, interaction.guild.id, 원고, 피고, 있었던일, result, interaction.user.id
             )
         except Exception as exc:
             print(f"[NVIDIA-JUDGE] failed: {type(exc).__name__}: {exc}")
