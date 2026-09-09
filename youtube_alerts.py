@@ -13,9 +13,11 @@ from discord import app_commands
 KST = timezone(timedelta(hours=9))
 CHANNEL_ID = "UCUPmRarC5IUyph8-tA3akUg"
 ROLE_NAME = os.getenv("YOUTUBE_NOTIFY_ROLE_NAME", "유튜브 알림받기")
+SUBSCRIBER_ROLE_NAME = os.getenv("ROUED_SUBSCRIBER_ROLE_NAME", "루에드 구독자")
 CATEGORY_NAME = "유튜브 알림"
 OPTIN_CHANNEL = "유튜브-알림받기"
 VIDEO_CHANNEL = "유튜브-새영상"
+SUBSCRIBE_VERIFY_CHANNEL = "루에드-구독인증"
 
 
 def setup_youtube_alerts(bot, get_conn, admin_only):
@@ -36,6 +38,18 @@ def setup_youtube_alerts(bot, get_conn, admin_only):
             return role
         try:
             return await guild.create_role(name=ROLE_NAME, reason="루에드 유튜브 알림 역할")
+        except (discord.Forbidden, discord.HTTPException):
+            return None
+
+    def get_subscriber_role(guild):
+        return discord.utils.get(guild.roles, name=SUBSCRIBER_ROLE_NAME)
+
+    async def ensure_subscriber_role(guild):
+        role = get_subscriber_role(guild)
+        if role:
+            return role
+        try:
+            return await guild.create_role(name=SUBSCRIBER_ROLE_NAME, reason="루에드 구독 인증 역할")
         except (discord.Forbidden, discord.HTTPException):
             return None
 
@@ -86,14 +100,16 @@ def setup_youtube_alerts(bot, get_conn, admin_only):
 
         role = await ensure_role(guild)
         if not role:
-            return await interaction.followup.send("❌ `유튜브 알림받기` 역할 생성에 실패했습니다.", ephemeral=True)
+            return await interaction.followup.send(f"❌ `{ROLE_NAME}` 역할 생성에 실패했습니다.", ephemeral=True)
 
+        await ensure_subscriber_role(guild)
         c = get_conn()
         c.execute("INSERT INTO best_yt_settings(guild_id,notify_channel_id,enabled) VALUES(?,?,1) ON CONFLICT(guild_id) DO UPDATE SET notify_channel_id=excluded.notify_channel_id,enabled=1", (guild.id, video.id))
+        c.execute("INSERT OR IGNORE INTO roued_yt_state(guild_id,last_video_id) VALUES(?,NULL)", (guild.id,))
         c.commit()
         c.close()
 
-        embed = discord.Embed(title="📺 루에드 유튜브 알림", description="루에드의 새 영상 알림을 받고 싶다면 아래 버튼을 눌러주세요.\n\n🔔 **켜기** → `유튜브 알림받기` 역할 부여\n🔕 **끄기** → 역할 제거\n\n새 영상은 `유튜브-새영상` 채널에 자동으로 올라옵니다.", color=discord.Color.red())
+        embed = discord.Embed(title="📺 루에드 유튜브 알림", description="루에드의 새 영상 알림을 받고 싶다면 아래 버튼을 눌러주세요.\n\n🔔 **켜기** → `유튜브 알림받기` 역할 부여\n🔕 **끄기** → 역할 제거\n\n새 영상은 `유튜브-새영상` 채널에 자동으로 올라옵니다.\n\n📸 `루에드-구독인증` 채널에 유튜브 구독 인증 사진을 올리면 **루에드 구독자** 역할을 자동 지급합니다.", color=discord.Color.red())
         embed.add_field(name="채널", value="[루에드 유튜브](https://youtube.com/channel/UCUPmRarC5IUyph8-tA3akUg)", inline=False)
         embed.set_footer(text="알림은 언제든지 버튼으로 변경할 수 있습니다.")
         await optin.send(embed=embed, view=AlertView())
@@ -152,6 +168,24 @@ def setup_youtube_alerts(bot, get_conn, admin_only):
                 print("[ROUED-YOUTUBE-LOOP]", exc)
             await asyncio.sleep(max(30, int(os.getenv("YOUTUBE_POLL_SECONDS", "120"))))
 
+    async def subscriber_verification(message: discord.Message):
+        if message.author.bot or not message.guild or message.channel.name != SUBSCRIBE_VERIFY_CHANNEL:
+            return
+        images = [a for a in message.attachments if (a.content_type or "").lower().startswith("image/") or a.filename.lower().endswith((".png", ".jpg", ".jpeg", ".webp", ".gif"))]
+        if not images:
+            return
+        role = await ensure_subscriber_role(message.guild)
+        if role is None:
+            return
+        try:
+            if role not in message.author.roles:
+                await message.author.add_roles(role, reason="루에드 구독 인증 사진 업로드")
+            await message.add_reaction("✅")
+        except (discord.Forbidden, discord.HTTPException) as exc:
+            print(f"[ROUED-SUBSCRIBER] role update failed for {message.author}: {exc}")
+
+    bot.add_listener(subscriber_verification, "on_message")
+
     async def ready():
         init_db()
         for guild in bot.guilds:
@@ -167,4 +201,4 @@ def setup_youtube_alerts(bot, get_conn, admin_only):
             pass
 
     bot.add_listener(ready, "on_ready")
-    print("[BEST] 루에드 유튜브 전용 알림 시스템 loaded")
+    print("[BEST] 루에드 유튜브 전용 알림 + 구독 인증 시스템 loaded")
