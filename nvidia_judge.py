@@ -64,13 +64,16 @@ def _request_judgment(prompt: str) -> str:
     return choices[0]["message"]["content"].strip()
 
 
-def _next_case_number(get_conn) -> int:
+def _next_case_number(get_conn, guild_id: int) -> int:
     conn = get_conn()
     try:
         conn.execute("BEGIN IMMEDIATE")
-        row = conn.execute("SELECT COALESCE(MAX(case_no), 0) + 1 AS next_no FROM ai_judgments WHERE guild_id = ?", (0,)).fetchone()
+        row = conn.execute(
+            "SELECT COALESCE(MAX(case_no), 0) + 1 AS next_no FROM ai_judgments WHERE guild_id = ?",
+            (guild_id,),
+        ).fetchone()
         case_no = int(row["next_no"])
-        conn.execute("COMMIT")
+        conn.rollback()
         return case_no
     except Exception:
         conn.rollback()
@@ -142,7 +145,7 @@ def setup_nvidia_judge(bot, get_conn, admin_only):
                 "확인되지 않은 사실은 사실처럼 단정하지 말고, 증거가 없으면 그 점을 명시하라."
             )
             result = await asyncio.to_thread(_request_judgment, prompt)
-            case_no = await asyncio.to_thread(_next_case_number, get_conn)
+            case_no = await asyncio.to_thread(_next_case_number, get_conn, interaction.guild.id)
             await asyncio.to_thread(
                 _save_case,
                 get_conn,
