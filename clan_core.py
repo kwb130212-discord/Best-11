@@ -5,6 +5,7 @@ from discord import app_commands
 from datetime import datetime, timezone, timedelta
 
 KST = timezone(timedelta(hours=9))
+CLAN_ROLE_NAME = "클랜원"
 
 
 def setup_clan_core(bot, get_conn, admin_only):
@@ -98,6 +99,69 @@ def setup_clan_core(bot, get_conn, admin_only):
         e = discord.Embed(title='📊 클랜 출석 TOP 10', description='\n'.join(lines) or '아직 출석 기록이 없습니다.', color=discord.Color.green())
         await i.response.send_message(embed=e)
 
+    @bot.tree.command(name='클랜원목록', description='현재 서버의 클랜원 역할 보유자를 확인합니다.')
+    async def clan_members(i: discord.Interaction):
+        role = discord.utils.get(i.guild.roles, name=CLAN_ROLE_NAME)
+        members = [m for m in role.members if not m.bot] if role else []
+        members.sort(key=lambda m: m.display_name.lower())
+        if not members:
+            return await i.response.send_message(f'ℹ️ `{CLAN_ROLE_NAME}` 역할을 가진 클랜원이 없습니다.', ephemeral=True)
+        chunks = []
+        for start in range(0, len(members), 40):
+            chunks.append('\n'.join(f'**{n}.** {m.mention}' for n, m in enumerate(members[start:start + 40], start + 1)))
+        e = discord.Embed(title=f'👥 BEST 클랜원 목록 ({len(members)}명)', description=chunks[0], color=discord.Color.blurple())
+        if len(chunks) > 1:
+            e.add_field(name='추가 클랜원', value='\n\n'.join(chunks[1:])[:1024], inline=False)
+        await i.response.send_message(embed=e)
+
+    @bot.tree.command(name='클랜통계', description='클랜의 출석·전적·경고·스크림 활동을 요약합니다.')
+    async def clan_stats(i: discord.Interaction):
+        c = get_conn()
+        attendance = c.execute('SELECT COUNT(*) AS n FROM clan_attendance WHERE guild_id=?', (i.guild_id,)).fetchone()['n']
+        warnings = c.execute('SELECT COUNT(*) AS n FROM clan_warnings WHERE guild_id=?', (i.guild_id,)).fetchone()['n']
+        records = c.execute('SELECT COALESCE(SUM(wins),0) AS w, COALESCE(SUM(losses),0) AS l FROM clan_records WHERE guild_id=?', (i.guild_id,)).fetchone()
+        scrims = c.execute("SELECT COUNT(*) AS n FROM scrim_participants WHERE guild_id=? AND status='attend'", (i.guild_id,)).fetchone()['n']
+        c.close()
+        wins, losses = int(records['w']), int(records['l'])
+        games = wins + losses
+        rate = wins / games * 100 if games else 0
+        role = discord.utils.get(i.guild.roles, name=CLAN_ROLE_NAME)
+        members = len([m for m in role.members if not m.bot]) if role else 0
+        e = discord.Embed(title='📈 BEST 클랜 통계', color=discord.Color.gold())
+        e.add_field(name='👥 클랜원', value=f'{members:,}명', inline=True)
+        e.add_field(name='📅 출석 기록', value=f'{attendance:,}건', inline=True)
+        e.add_field(name='⚔️ 스크림 참석', value=f'{scrims:,}건', inline=True)
+        e.add_field(name='🏆 전적', value=f'{wins}승 {losses}패', inline=True)
+        e.add_field(name='📊 팀 승률', value=f'{rate:.1f}%', inline=True)
+        e.add_field(name='⚠️ 경고', value=f'{warnings:,}건', inline=True)
+        await i.response.send_message(embed=e)
+
+    @bot.tree.command(name='클랜원역할', description='[관리자] 클랜원 역할을 지급하거나 제거합니다.')
+    @app_commands.describe(대상='대상 클랜원', 역할='지급 또는 제거', 사유='처리 사유')
+    @admin_only()
+    async def clan_member_role(i: discord.Interaction, 대상: discord.Member, 역할: str, 사유: str = '관리자 처리'):
+        action = 역할.strip().lower()
+        if action not in {'지급', '제거', '추가', '삭제', 'on', 'off'}:
+            return await i.response.send_message('❌ 역할은 `지급` 또는 `제거`로 입력해주세요.', ephemeral=True)
+        role = discord.utils.get(i.guild.roles, name=CLAN_ROLE_NAME)
+        if role is None:
+            try:
+                role = await i.guild.create_role(name=CLAN_ROLE_NAME, reason='BEST 클랜원 역할 자동 생성')
+            except (discord.Forbidden, discord.HTTPException):
+                return await i.response.send_message('❌ 클랜원 역할 생성 권한이 없습니다.', ephemeral=True)
+        if role >= i.guild.me.top_role:
+            return await i.response.send_message('❌ 봇의 최고 역할보다 `클랜원` 역할이 높거나 같아 처리할 수 없습니다.', ephemeral=True)
+        try:
+            if action in {'지급', '추가', 'on'}:
+                await 대상.add_roles(role, reason=사유)
+                result = '지급'
+            else:
+                await 대상.remove_roles(role, reason=사유)
+                result = '제거'
+        except (discord.Forbidden, discord.HTTPException) as exc:
+            return await i.response.send_message(f'❌ 역할 처리에 실패했습니다: {type(exc).__name__}', ephemeral=True)
+        await i.response.send_message(f'✅ {대상.mention}에게 **{CLAN_ROLE_NAME}** 역할을 {result}했습니다.\n사유: {사유}')
+
     @bot.tree.command(name='공지', description='[관리자] 클랜 공지를 전송합니다.')
     @app_commands.describe(내용='공지 내용', 제목='공지 제목')
     @admin_only()
@@ -173,7 +237,7 @@ def setup_clan_core(bot, get_conn, admin_only):
     async def commands_list(i: discord.Interaction):
         text = (
             '**🏆 BEST 클랜 기본**\n'
-            '`/클랜정보` `/내정보` `/출석` `/출석현황` `/클랜명령어`\n\n'
+            '`/클랜정보` `/내정보` `/클랜원목록` `/클랜통계` `/클랜원역할` `/출석` `/출석현황` `/클랜명령어`\n\n'
             '**📊 전적/등급**\n'
             '`/전적` `/승률순위`\n'
             '등급: **정예 70%+ / 1군 55%+ / 2군 40%+ / 3군 40% 미만**\n\n'
