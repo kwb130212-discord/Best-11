@@ -88,7 +88,13 @@ def _save_case(get_conn, guild_id: int, plaintiff: str, defendant: str, incident
         conn.close()
 
 
-def setup_nvidia_judge(bot, get_conn, admin_only):
+def _add_result(embed: discord.Embed, result: str) -> None:
+    chunks = [result[i:i + 1000] for i in range(0, min(len(result), 6000), 1000)] or ["(판정 내용 없음)"]
+    for index, chunk in enumerate(chunks, 1):
+        embed.add_field(name="⚖️ 판정" if index == 1 else f"⚖️ 판정 {index}", value=chunk, inline=False)
+
+
+def setup_nvidia_judge(bot, get_conn):
     conn = get_conn()
     conn.execute("""CREATE TABLE IF NOT EXISTS ai_judgments (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -155,7 +161,7 @@ def setup_nvidia_judge(bot, get_conn, admin_only):
         embed.add_field(name="원고", value=원고, inline=True)
         embed.add_field(name="피고", value=피고, inline=True)
         embed.add_field(name="있었던 일", value=있었던일[:1024], inline=False)
-        embed.add_field(name="⚖️ 판정", value=result[:5900], inline=False)
+        _add_result(embed, result)
         embed.set_footer(text="AI 판정은 참고용이며 최종적인 서버 운영 판단은 관리자에게 있습니다.")
         await interaction.followup.send(embed=embed)
 
@@ -181,7 +187,7 @@ def setup_nvidia_judge(bot, get_conn, admin_only):
         embed.add_field(name="원고", value=row["plaintiff"], inline=True)
         embed.add_field(name="피고", value=row["defendant"], inline=True)
         embed.add_field(name="있었던 일", value=row["incident"][:1024], inline=False)
-        embed.add_field(name="⚖️ 판정", value=row["result"][:5900], inline=False)
+        _add_result(embed, row["result"])
         embed.set_footer(text="AI 분석 기록 · 실제 법적 효력 없음")
         await interaction.response.send_message(embed=embed)
 
