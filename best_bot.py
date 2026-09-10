@@ -131,10 +131,7 @@ clan_rank.setup_clan_rank(bot, get_conn, admin_only)
 setup_upgrade(bot, get_conn, admin_only)
 setup_nvidia_judge(bot, get_conn)
 setup_creator_clan_features(bot, get_conn, admin_only)
-
-import asyncio
-
-asyncio.get_event_loop().create_task(setup_dashboard(bot))
+setup_dashboard(bot)
 
 
 _sync_done = False
