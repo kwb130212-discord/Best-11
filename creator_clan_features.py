@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 """BEST-11 유튜버/클랜 운영 기능."""
-import re
 from datetime import datetime, timezone, timedelta
 from urllib.parse import urlparse
 
@@ -8,7 +7,6 @@ import discord
 from discord import app_commands
 
 KST = timezone(timedelta(hours=9))
-URL_RE = re.compile(r"https?://\S+", re.IGNORECASE)
 
 
 def setup_creator_clan_features(bot, get_conn, admin_only):
@@ -69,7 +67,6 @@ def setup_creator_clan_features(bot, get_conn, admin_only):
         target = await resolve_channel(interaction, 채널, "video")
         if target is None:
             return await interaction.response.send_message("❌ 전송할 채널을 찾을 수 없습니다.", ephemeral=True)
-
         embed = discord.Embed(
             title=f"🎬 {clip(제목, 256)}",
             description=clip(설명 or "새 영상이 업로드되었습니다!", 4096),
