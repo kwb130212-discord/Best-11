@@ -64,6 +64,8 @@ OPTION_RENAMES = {
 
 
 app = load_app_safely()
+from premium_ui import install_embed_theme
+install_embed_theme()
 from app import bot, get_conn, admin_only, TOKEN
 
 app.ADMIN_ROLE_NAME = "관리자"
