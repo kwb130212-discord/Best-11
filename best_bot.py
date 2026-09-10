@@ -115,6 +115,7 @@ from clan_recruitment import setup_clan_recruitment
 from best_upgrade import setup_upgrade
 from nvidia_judge import setup_nvidia_judge
 from creator_clan_features import setup_creator_clan_features
+from dashboard_ui import setup_dashboard
 
 clan_core = load_feature_safely("clan_core", OPTION_RENAMES)
 clan_rank = load_feature_safely("clan_rank", OPTION_RENAMES)
@@ -130,6 +131,10 @@ clan_rank.setup_clan_rank(bot, get_conn, admin_only)
 setup_upgrade(bot, get_conn, admin_only)
 setup_nvidia_judge(bot, get_conn)
 setup_creator_clan_features(bot, get_conn, admin_only)
+
+import asyncio
+
+asyncio.get_event_loop().create_task(setup_dashboard(bot))
 
 
 _sync_done = False
