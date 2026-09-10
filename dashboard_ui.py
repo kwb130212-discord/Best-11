@@ -2,7 +2,7 @@
 """BEST-11 프리미엄 통합 대시보드 UI."""
 import discord
 
-from premium_ui import brand, PRIMARY, SUCCESS, WARNING, DANGER
+from premium_ui import PRIMARY, SUCCESS, WARNING, DANGER
 
 
 class DashboardSelect(discord.ui.Select):
@@ -48,7 +48,7 @@ class DashboardView(discord.ui.View):
         self.add_item(DashboardSelect(bot))
 
 
-async def setup_dashboard(bot):
+def setup_dashboard(bot):
     @bot.tree.command(name="대시보드", description="BEST-11의 모든 주요 기능을 한눈에 확인합니다.")
     async def dashboard(interaction: discord.Interaction):
         guild = interaction.guild
