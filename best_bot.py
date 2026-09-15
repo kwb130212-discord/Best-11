@@ -2,6 +2,7 @@
 """BEST-11 launcher: app core + modular feature Cogs."""
 from __future__ import annotations
 
+import asyncio
 import importlib
 import pkgutil
 import sys
@@ -58,6 +59,29 @@ premium_ui.install_embed_theme()
 
 app.ADMIN_ROLE_NAME = "관리자"
 SCRIM_ROLE_NAME = "정기내전(스크림)참석"
+
+
+async def resilient_connect(*, reconnect: bool = True):
+    """Recover from discord.py's None websocket resume edge case.
+
+    A failed gateway handshake can leave ``Client.ws`` unset. Older reconnect
+    paths in discord.py can then dereference ``self.ws.sequence`` and crash the
+    whole process. Retry the gateway connection with a fresh session instead.
+    """
+    original_connect = type(bot).connect.__get__(bot, type(bot))
+    while not bot.is_closed():
+        try:
+            await original_connect(reconnect=reconnect)
+            return
+        except AttributeError as exc:
+            if reconnect and bot.ws is None and "sequence" in str(exc):
+                print("[BEST-GATEWAY] websocket state lost; retrying with a fresh connection in 3s")
+                await asyncio.sleep(3)
+                continue
+            raise
+
+
+bot.connect = resilient_connect
 
 
 async def scrim_role_listener(interaction):
