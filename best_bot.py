@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""BEST-11 launcher: legacy compatibility + automatic Cog discovery."""
+"""BEST-11 launcher: app core + modular feature Cogs."""
 from __future__ import annotations
 
 import importlib
@@ -8,46 +8,53 @@ import sys
 import types
 from pathlib import Path
 
-
-def load_app_safely():
-    path = Path(__file__).with_name("app.py")
-    source = path.read_text(encoding="utf-8")
-    source = source.replace('custom_id=f"scrim_attend_{scrim_id}"', 'custom_id="scrim_attend"')
-    source = source.replace('custom_id=f"scrim_absent_{scrim_id}"', 'custom_id="scrim_absent"')
-    source = source.replace('custom_id=f"scrim_pending_{scrim_id}"', 'custom_id="scrim_pending"')
-    module = types.ModuleType("app")
-    module.__file__ = str(path)
-    module.__package__ = ""
-    sys.modules["app"] = module
-    exec(compile(source, str(path), "exec"), module.__dict__)
-    return module
-
+FEATURE_COGS = {
+    "best_features", "best_overrides", "best_upgrade", "clan_core", "clan_rank",
+    "clan_recruitment", "creator_clan_features", "dashboard_ui", "nvidia_judge",
+    "premium_ui", "security_guard", "team_shuffle", "youtube_alerts",
+}
 
 OPTION_RENAMES = {
-    "이벤트ID":"event_id", "스크림ID":"scrim_id", "제목":"title", "설명":"description", "최대참여":"max_entries",
-    "역할":"role", "배율":"multiplier", "채널":"channel", "요일":"weekday", "시":"hour", "분":"minute",
-    "내용":"content", "개수":"amount", "대상":"member", "사유":"reason", "결과":"result", "경기수":"games",
-    "켜기":"enabled", "링크":"url", "멘션역할":"mention_role", "영상채널":"video_channel", "공지채널":"notice_channel",
+    "이벤트ID": "event_id", "스크림ID": "scrim_id", "제목": "title", "설명": "description",
+    "최대참여": "max_entries", "역할": "role", "배율": "multiplier", "채널": "channel",
+    "요일": "weekday", "시": "hour", "분": "minute", "내용": "content", "개수": "amount",
+    "대상": "member", "사유": "reason", "결과": "result", "경기수": "games", "켜기": "enabled",
+    "링크": "url", "멘션역할": "mention_role", "영상채널": "video_channel", "공지채널": "notice_channel",
 }
 
 
-def load_feature_safely(name: str):
-    path = Path(__file__).with_name(name + ".py")
+def exec_module(path: Path, name: str, replacements: dict[str, str] | None = None):
     source = path.read_text(encoding="utf-8")
-    for old, new in OPTION_RENAMES.items():
+    for old, new in (replacements or {}).items():
         source = source.replace(old, new)
     module = types.ModuleType(name)
     module.__file__ = str(path)
-    module.__package__ = ""
+    module.__package__ = "cogs"
     sys.modules[name] = module
     exec(compile(source, str(path), "exec"), module.__dict__)
     return module
 
 
-app = load_app_safely()
-from premium_ui import install_embed_theme
-install_embed_theme()
+def load_app():
+    path = Path(__file__).with_name("app.py")
+    return exec_module(path, "app", {
+        'custom_id=f"scrim_attend_{scrim_id}"': 'custom_id="scrim_attend"',
+        'custom_id=f"scrim_absent_{scrim_id}"': 'custom_id="scrim_absent"',
+        'custom_id=f"scrim_pending_{scrim_id}"': 'custom_id="scrim_pending"',
+    })
+
+
+app = load_app()
 from app import bot, get_conn, admin_only, TOKEN
+
+
+def load_feature_cog(name: str):
+    path = Path(__file__).parent / "cogs" / f"{name}.py"
+    return exec_module(path, name, OPTION_RENAMES)
+
+
+premium_ui = load_feature_cog("premium_ui")
+premium_ui.install_embed_theme()
 
 app.ADMIN_ROLE_NAME = "관리자"
 SCRIM_ROLE_NAME = "정기내전(스크림)참석"
@@ -77,34 +84,25 @@ async def scrim_role_listener(interaction):
 
 bot.add_listener(scrim_role_listener, "on_interaction")
 
-# 기존 기능은 호환 로더로 유지합니다.
-best_features = load_feature_safely("best_features")
-best_overrides = load_feature_safely("best_overrides")
-clan_core = load_feature_safely("clan_core")
-clan_rank = load_feature_safely("clan_rank")
-from youtube_alerts import setup_youtube_alerts
-from team_shuffle import setup_team_shuffle
-from security_guard import setup_security_guard
-from clan_recruitment import setup_clan_recruitment
-from best_upgrade import setup_upgrade
-from nvidia_judge import setup_nvidia_judge
-from creator_clan_features import setup_creator_clan_features
-from dashboard_ui import setup_dashboard
+FEATURE_SETUPS = {
+    "best_features": "setup_best_features",
+    "best_overrides": "setup_overrides",
+    "youtube_alerts": "setup_youtube_alerts",
+    "team_shuffle": "setup_team_shuffle",
+    "security_guard": "setup_security_guard",
+    "clan_recruitment": "setup_clan_recruitment",
+    "clan_core": "setup_clan_core",
+    "clan_rank": "setup_clan_rank",
+    "best_upgrade": "setup_upgrade",
+    "nvidia_judge": "setup_nvidia_judge",
+    "creator_clan_features": "setup_creator_clan_features",
+    "dashboard_ui": "setup_dashboard",
+}
 
-best_features.setup_best_features(bot, get_conn, admin_only)
-best_overrides.setup_overrides(bot, get_conn, admin_only)
-setup_youtube_alerts(bot, get_conn, admin_only)
-setup_team_shuffle(bot, get_conn)
-setup_security_guard(bot, get_conn, admin_only)
-setup_clan_recruitment(bot, admin_only)
-clan_core.setup_clan_core(bot, get_conn, admin_only)
-clan_rank.setup_clan_rank(bot, get_conn, admin_only)
-setup_upgrade(bot, get_conn, admin_only)
-setup_nvidia_judge(bot, get_conn)
-setup_creator_clan_features(bot, get_conn, admin_only)
-setup_dashboard(bot)
+for module_name, setup_name in FEATURE_SETUPS.items():
+    module = load_feature_cog(module_name)
+    getattr(module, setup_name)(bot, get_conn, admin_only)
 
-# 새 Cogs가 기존 app의 동일 명령을 대체하도록 트리에서 제거합니다.
 for command_name in ("티켓", "티켓패널", "인증패널"):
     bot.tree.remove_command(command_name)
 
@@ -112,7 +110,8 @@ for command_name in ("티켓", "티켓패널", "인증패널"):
 async def load_cogs() -> None:
     package = importlib.import_module("cogs")
     for info in pkgutil.iter_modules(package.__path__, package.__name__ + "."):
-        if info.name.rsplit(".", 1)[-1].startswith("_"):
+        name = info.name.rsplit(".", 1)[-1]
+        if name.startswith("_") or name in FEATURE_COGS:
             continue
         try:
             await bot.load_extension(info.name)
@@ -126,11 +125,10 @@ async def setup_hook():
     await load_cogs()
 
 
-# discord.py Bot 인스턴스에 setup_hook을 안전하게 연결합니다.
 bot.setup_hook = setup_hook
-
-
 _sync_lock = False
+
+
 async def sync_commands():
     global _sync_lock
     if _sync_lock:
@@ -142,6 +140,7 @@ async def sync_commands():
     except Exception as exc:
         _sync_lock = False
         print(f"[BEST-COMMANDS] sync failed: {type(exc).__name__}: {exc}")
+
 
 bot.add_listener(sync_commands, "on_ready")
 
