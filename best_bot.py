@@ -62,12 +62,7 @@ SCRIM_ROLE_NAME = "정기내전(스크림)참석"
 
 
 async def resilient_connect(*, reconnect: bool = True):
-    """Recover from discord.py's None websocket resume edge case.
-
-    A failed gateway handshake can leave ``Client.ws`` unset. Older reconnect
-    paths in discord.py can then dereference ``self.ws.sequence`` and crash the
-    whole process. Retry the gateway connection with a fresh session instead.
-    """
+    """Recover from discord.py's None websocket resume edge case."""
     original_connect = type(bot).connect.__get__(bot, type(bot))
     while not bot.is_closed():
         try:
@@ -158,12 +153,23 @@ async def sync_commands():
     if _sync_lock:
         return
     _sync_lock = True
+    max_attempts = 5
     try:
-        synced = await bot.tree.sync()
-        print(f"[BEST-COMMANDS] synced={len(synced)} local={len(bot.tree.get_commands())}")
-    except Exception as exc:
+        for attempt in range(1, max_attempts + 1):
+            try:
+                synced = await bot.tree.sync()
+                print(f"[BEST-COMMANDS] synced={len(synced)} local={len(bot.tree.get_commands())}")
+                return
+            except Exception as exc:
+                status = getattr(exc, "status", None)
+                if status not in {500, 502, 503, 504} or attempt == max_attempts:
+                    print(f"[BEST-COMMANDS] sync failed: {type(exc).__name__}: {exc}")
+                    return
+                delay = min(5 * attempt, 20)
+                print(f"[BEST-COMMANDS] sync temporary HTTP {status}; retry {attempt}/{max_attempts} in {delay}s")
+                await asyncio.sleep(delay)
+    finally:
         _sync_lock = False
-        print(f"[BEST-COMMANDS] sync failed: {type(exc).__name__}: {exc}")
 
 
 bot.add_listener(sync_commands, "on_ready")
